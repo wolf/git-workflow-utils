@@ -1,6 +1,6 @@
 [project]
 name = "git-workflow-utils"
-version = "1.0.0"
+version = "1.0.1"
 description = "Shared utilities for git workflow automation scripts"
 readme = "README.md"
 authors = [
@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = []
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.0",
