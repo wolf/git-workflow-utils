@@ -1,0 +1,11 @@
+# Ignore everything in .ipython by default
+*
+
+# But track .gitignore itself
+!.gitignore
+
+# Track the profile directory structure
+!profile_default/
+!profile_default/ipython_config.py
+!profile_default/startup/
+!profile_default/startup/*

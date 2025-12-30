@@ -1,0 +1,22 @@
+[project]
+name = "git-workflow-utils"
+version = "1.0.0"
+description = "Shared utilities for git workflow automation scripts"
+readme = "README.md"
+authors = [
+    { name = "Wolf", email = "Wolf@zv.cx" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ipython>=8.0",
+    "ipdb>=0.13",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
