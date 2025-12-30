@@ -1,6 +1,7 @@
 """Core git operations."""
 
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -226,3 +227,93 @@ def initialize_repo(repo: str | Path | None = None) -> None:
 
     submodule_update(repo_path)
     setup_envrc(repo_path)
+
+
+def find_git_repos(root_dir: str | Path) -> Iterator[Path]:
+    """
+    Find all git repositories under root_dir.
+
+    Yields repository paths (parent of .git file/directory).
+    Handles both regular repos (.git directory) and worktrees (.git file).
+
+    Args:
+        root_dir: Root directory to search for git repositories
+
+    Yields:
+        Repository paths
+
+    Example:
+        for repo in sorted(find_git_repos(Path.home() / "develop")):
+            print(repo.name)
+    """
+    for git_marker in Path(root_dir).rglob(".git"):
+        yield git_marker.parent
+
+
+def user_email_in_this_working_copy(repo: str | Path | None = None) -> str | None:
+    """
+    Get the configured user email for this working copy.
+
+    Args:
+        repo: Path to working copy. Defaults to current directory.
+
+    Returns:
+        Configured user.email, or None if not configured
+
+    Example:
+        email = user_email_in_this_working_copy(Path("/path/to/repo"))
+        if email:
+            print(f"Author: {email}")
+    """
+    repo = resolve_repo(repo)
+
+    try:
+        result = run_git("config", "user.email", repo=repo, capture=True)
+        email = result.stdout.strip()
+        return email if email else None
+    except subprocess.CalledProcessError:
+        return None
+
+
+def get_commits(
+    repo: str | Path | None = None,
+    since: str | None = None,
+    author_email: str | None = None,
+) -> Iterator[tuple[str, str]]:
+    """
+    Get commits from repository, optionally filtered by time and author.
+
+    Yields (commit_hash, summary) tuples for commits matching the criteria.
+
+    Args:
+        repo: Path to working copy. Defaults to current directory.
+        since: Time range (e.g., 'midnight', '24 hours ago', '2025-12-30 08:00')
+        author_email: Filter by author email
+
+    Yields:
+        Tuples of (commit_hash, summary)
+
+    Example:
+        for hash, summary in get_commits(since="midnight", author_email="you@example.com"):
+            print(f"{hash[:7]} - {summary}")
+    """
+    repo = resolve_repo(repo)
+
+    args = ["log", "--format=%H%x00%s", "--all"]
+
+    if since:
+        args.append(f"--since={since}")
+
+    if author_email:
+        args.append(f"--author={author_email}")
+
+    try:
+        result = run_git(*args, repo=repo, capture=True)
+
+        for line in result.stdout.strip().split("\n"):
+            if line:
+                hash_part, summary = line.split("\x00", 1)
+                yield (hash_part, summary)
+
+    except subprocess.CalledProcessError:
+        return

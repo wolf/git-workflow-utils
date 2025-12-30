@@ -1,6 +1,6 @@
 [project]
 name = "git-workflow-utils"
-version = "1.0.1"
+version = "1.0.2"
 description = "Shared utilities for git workflow automation scripts"
 readme = "README.md"
 authors = [

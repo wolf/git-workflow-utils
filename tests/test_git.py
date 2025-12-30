@@ -9,10 +9,13 @@ from git_workflow_utils.git import (
     current_branch,
     fetch_all,
     find_branches,
+    find_git_repos,
+    get_commits,
     has_uncommitted_changes,
     initialize_repo,
     run_git,
     submodule_update,
+    user_email_in_this_working_copy,
 )
 
 
@@ -179,3 +182,120 @@ class TestInitializeRepo:
         envrc = git_repo / ".envrc"
         assert envrc.exists()
         assert envrc.is_symlink()
+
+
+class TestFindGitRepos:
+    """Tests for find_git_repos function."""
+
+    def test_finds_single_repo(self, tmp_path, git_repo):
+        repos = list(find_git_repos(tmp_path))
+        assert git_repo in repos
+
+    def test_finds_multiple_repos(self, tmp_path):
+        # Create multiple repos
+        repo1 = tmp_path / "repo1"
+        repo1.mkdir()
+        subprocess.run(["git", "init"], cwd=repo1, check=True, capture_output=True)
+
+        repo2 = tmp_path / "repo2"
+        repo2.mkdir()
+        subprocess.run(["git", "init"], cwd=repo2, check=True, capture_output=True)
+
+        repos = list(find_git_repos(tmp_path))
+        assert repo1 in repos
+        assert repo2 in repos
+
+    def test_finds_nested_repos(self, tmp_path):
+        # Create nested structure
+        parent = tmp_path / "parent"
+        parent.mkdir()
+        subprocess.run(["git", "init"], cwd=parent, check=True, capture_output=True)
+
+        child = parent / "child"
+        child.mkdir()
+        subprocess.run(["git", "init"], cwd=child, check=True, capture_output=True)
+
+        repos = list(find_git_repos(tmp_path))
+        assert parent in repos
+        assert child in repos
+
+    def test_handles_worktrees(self, tmp_path, git_repo):
+        # Create a worktree
+        worktree_path = tmp_path / "worktree"
+        subprocess.run(
+            ["git", "worktree", "add", str(worktree_path), "-b", "feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        repos = list(find_git_repos(tmp_path))
+        assert git_repo in repos
+        assert worktree_path in repos
+
+
+class TestUserEmailInThisWorkingCopy:
+    """Tests for user_email_in_this_working_copy function."""
+
+    def test_returns_configured_email(self, git_repo):
+        email = user_email_in_this_working_copy(git_repo)
+        assert email == "test@example.com"
+
+    def test_returns_global_email_when_local_not_configured(self, tmp_path):
+        # Create repo without local email config (will fall back to global)
+        repo = tmp_path / "no-local-email-repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+        email = user_email_in_this_working_copy(repo)
+        # Should return global config if local not set
+        assert email is not None
+
+    def test_works_with_current_directory(self, git_repo, monkeypatch):
+        monkeypatch.chdir(git_repo)
+        email = user_email_in_this_working_copy()
+        assert email == "test@example.com"
+
+
+class TestGetCommits:
+    """Tests for get_commits function."""
+
+    def test_returns_commits_by_author(self, git_repo):
+        commits = list(get_commits(repo=git_repo, author_email="test@example.com"))
+        assert len(commits) == 1
+        assert commits[0][1] == "Initial commit"
+
+    def test_returns_empty_for_different_author(self, git_repo):
+        commits = list(get_commits(repo=git_repo, author_email="other@example.com"))
+        assert len(commits) == 0
+
+    def test_filters_by_since(self, git_repo):
+        # Get initial commit time for reference
+        import time
+        time.sleep(2)  # Wait to ensure time difference
+
+        # Create new commit
+        (git_repo / "new.txt").write_text("new")
+        subprocess.run(["git", "add", "new.txt"], cwd=git_repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "New commit"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Get commits since 1 second ago (should only get the new one)
+        commits = list(get_commits(repo=git_repo, since="1 second ago", author_email="test@example.com"))
+        assert len(commits) == 1
+        assert commits[0][1] == "New commit"
+
+    def test_returns_hash_and_summary(self, git_repo):
+        commits = list(get_commits(repo=git_repo))
+        assert len(commits) == 1
+        hash_part, summary = commits[0]
+        assert len(hash_part) == 40  # Full SHA
+        assert summary == "Initial commit"
+
+    def test_works_without_filters(self, git_repo):
+        commits = list(get_commits(repo=git_repo))
+        assert len(commits) >= 1

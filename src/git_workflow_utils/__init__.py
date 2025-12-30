@@ -14,10 +14,13 @@ from .git import (
     current_branch,
     fetch_all,
     find_branches,
+    find_git_repos,
+    get_commits,
     has_uncommitted_changes,
     initialize_repo,
     run_git,
     submodule_update,
+    user_email_in_this_working_copy,
 )
 from .paths import (
     is_absolute_repo_path,
@@ -30,6 +33,8 @@ __all__ = (
     "direnv_allow",
     "fetch_all",
     "find_branches",
+    "find_git_repos",
+    "get_commits",
     "has_uncommitted_changes",
     "initialize_repo",
     "is_absolute_repo_path",
@@ -39,4 +44,5 @@ __all__ = (
     "run_git",
     "setup_envrc",
     "submodule_update",
+    "user_email_in_this_working_copy",
 )
