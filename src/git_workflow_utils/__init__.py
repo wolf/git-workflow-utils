@@ -26,6 +26,7 @@ from .paths import (
     is_absolute_repo_path,
     resolve_path,
     resolve_repo,
+    sanitize_directory_name,
 )
 
 __all__ = (
@@ -42,6 +43,7 @@ __all__ = (
     "resolve_path",
     "resolve_repo",
     "run_git",
+    "sanitize_directory_name",
     "setup_envrc",
     "submodule_update",
     "user_email_in_this_working_copy",

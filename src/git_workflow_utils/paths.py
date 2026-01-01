@@ -1,5 +1,6 @@
 """Path and repository resolution utilities."""
 
+import re
 from pathlib import Path
 
 
@@ -64,3 +65,44 @@ def resolve_repo(repo: str | Path | None = None) -> Path:
     repo_path = resolve_path(repo)
     assert is_absolute_repo_path(repo_path)
     return repo_path
+
+
+def sanitize_directory_name(name: str) -> str:
+    r"""
+    Sanitize a string to be safe for use as a directory name.
+
+    Replaces unsafe filesystem characters with hyphens to ensure the string
+    can be used as a directory name across different operating systems.
+
+    Unsafe characters replaced with hyphens: / \ : * ? " < > |
+
+    Additional transformations:
+    - Multiple consecutive unsafe characters are collapsed to single hyphens
+    - Leading and trailing hyphens are stripped
+
+    Args:
+        name: The string to sanitize (e.g., a git branch name)
+
+    Returns:
+        Sanitized string safe for directory names
+
+    Raises:
+        ValueError: If the result is empty after sanitization
+
+    Example:
+        >>> sanitize_directory_name("feature/foo")
+        'feature-foo'
+        >>> sanitize_directory_name("bug/fix:issue-123")
+        'bug-fix-issue-123'
+        >>> sanitize_directory_name("/leading-and-trailing/")
+        'leading-and-trailing'
+    """
+    # Replace unsafe chars with hyphens and strip leading/trailing hyphens
+    sanitized = re.sub(r'[/\\:*?"<>|]+', '-', name).strip('-')
+
+    if not sanitized:
+        raise ValueError(
+            f"Name '{name}' is empty or contains only unsafe characters"
+        )
+
+    return sanitized

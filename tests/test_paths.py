@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from git_workflow_utils.paths import is_absolute_repo_path, resolve_path, resolve_repo
+from git_workflow_utils.paths import (
+    is_absolute_repo_path,
+    resolve_path,
+    resolve_repo,
+    sanitize_directory_name,
+)
 
 
 class TestResolvePath:
@@ -82,3 +87,43 @@ class TestResolveRepo:
         # For now, just verify it attempts to resolve
         with pytest.raises(AssertionError):
             resolve_repo("~/nonexistent-repo")
+
+
+class TestSanitizeDirectoryName:
+    """Tests for sanitize_directory_name function."""
+
+    def test_replaces_slashes_with_hyphens(self):
+        assert sanitize_directory_name("feature/foo") == "feature-foo"
+        assert sanitize_directory_name("bugfix/issue-123") == "bugfix-issue-123"
+
+    def test_replaces_all_unsafe_characters(self):
+        assert sanitize_directory_name("branch/name") == "branch-name"
+        assert sanitize_directory_name("branch\\name") == "branch-name"
+        assert sanitize_directory_name("branch:name") == "branch-name"
+        assert sanitize_directory_name("branch*name") == "branch-name"
+        assert sanitize_directory_name('branch"name') == "branch-name"
+
+    def test_collapses_consecutive_unsafe_chars(self):
+        assert sanitize_directory_name("feature//foo") == "feature-foo"
+        assert sanitize_directory_name("bug///fix") == "bug-fix"
+        assert sanitize_directory_name("test/:/mixed") == "test-mixed"
+
+    def test_strips_leading_and_trailing_hyphens(self):
+        assert sanitize_directory_name("/leading") == "leading"
+        assert sanitize_directory_name("trailing/") == "trailing"
+        assert sanitize_directory_name("/both/") == "both"
+
+    def test_preserves_safe_characters(self):
+        assert sanitize_directory_name("feature-123") == "feature-123"
+        assert sanitize_directory_name("bug_fix") == "bug_fix"
+        assert sanitize_directory_name("test.branch") == "test.branch"
+
+    def test_real_world_examples(self):
+        assert sanitize_directory_name("feature/user-auth") == "feature-user-auth"
+        assert sanitize_directory_name("bugfix/issue-42/quick-fix") == "bugfix-issue-42-quick-fix"
+
+    def test_raises_on_empty_or_all_unsafe(self):
+        with pytest.raises(ValueError, match="empty or contains only unsafe"):
+            sanitize_directory_name("")
+        with pytest.raises(ValueError, match="empty or contains only unsafe"):
+            sanitize_directory_name("///")
