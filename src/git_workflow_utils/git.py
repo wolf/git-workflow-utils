@@ -5,8 +5,9 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
-from .direnv import setup_envrc
+from .direnv import direnv_allow
 from .paths import resolve_repo
+from .templates import apply_user_template, symlink_envrc_if_needed
 
 
 def run_git(
@@ -51,6 +52,56 @@ def run_git(
         )
 
     return subprocess.run(cmd, check=check, **kwargs)
+
+
+def git_config(
+    key: str,
+    repo: Path | None = None,
+    default: str | None = None,
+) -> str | None:
+    """
+    Get a git config value.
+
+    Args:
+        key: Config key to retrieve (e.g., "user.name", "worktree.userTemplate.mode")
+        repo: Optional repository path. If None, uses current directory.
+        default: Default value if config key is not set.
+
+    Returns:
+        Config value if set, otherwise default.
+
+    Example:
+        mode = git_config("worktree.userTemplate.mode", default="link")
+        email = git_config("user.email")
+    """
+    result = run_git("config", key, repo=repo, capture=True, check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    return default
+
+
+def git_config_list(
+    key: str,
+    repo: Path | None = None,
+) -> set[str]:
+    """
+    Get all values for a multi-value git config key.
+
+    Args:
+        key: Config key to retrieve (e.g., "worktree.userTemplate.link")
+        repo: Optional repository path. If None, uses current directory.
+
+    Returns:
+        Set of config values, empty set if key is not set.
+
+    Example:
+        files = git_config_list("worktree.userTemplate.link")
+        # Returns: {".envrc.local", ".ipython"}
+    """
+    result = run_git("config", "--get-all", key, repo=repo, capture=True, check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        return set(result.stdout.strip().split("\n"))
+    return set()
 
 
 def current_branch(repo: Path | None = None) -> str:
@@ -212,7 +263,9 @@ def initialize_repo(repo: str | Path | None = None) -> None:
 
     This performs common post-clone/worktree setup tasks:
     - Initialize and update submodules recursively
-    - Set up .envrc from .envrc.sample (if present and direnv available)
+    - Set up .envrc from .envrc.sample (if present)
+    - Allow direnv if .envrc exists (if direnv available)
+    - Apply user templates from ~/.config/git/user-template/ (if configured)
 
     Note: This is for working copies, not bare repositories.
 
@@ -226,7 +279,12 @@ def initialize_repo(repo: str | Path | None = None) -> None:
     repo_path = resolve_repo(repo)
 
     submodule_update(repo_path)
-    setup_envrc(repo_path)
+
+    envrc = symlink_envrc_if_needed(repo_path)
+    if envrc:
+        direnv_allow(envrc)
+
+    apply_user_template(repo_path)
 
 
 def find_git_repos(

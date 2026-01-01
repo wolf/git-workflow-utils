@@ -8,7 +8,6 @@ working directory or on a specified repository path.
 from .direnv import (
     direnv_allow,
     is_direnv_available,
-    setup_envrc,
 )
 from .git import (
     current_branch,
@@ -17,6 +16,8 @@ from .git import (
     find_branches,
     find_git_repos,
     get_commits,
+    git_config,
+    git_config_list,
     has_uncommitted_changes,
     initialize_repo,
     run_git,
@@ -29,8 +30,13 @@ from .paths import (
     resolve_repo,
     sanitize_directory_name,
 )
+from .templates import (
+    apply_user_template,
+    symlink_envrc_if_needed,
+)
 
 __all__ = (
+    "apply_user_template",
     "current_branch",
     "direnv_allow",
     "fetch_all",
@@ -38,6 +44,8 @@ __all__ = (
     "find_branches",
     "find_git_repos",
     "get_commits",
+    "git_config",
+    "git_config_list",
     "has_uncommitted_changes",
     "initialize_repo",
     "is_absolute_repo_path",
@@ -46,7 +54,7 @@ __all__ = (
     "resolve_repo",
     "run_git",
     "sanitize_directory_name",
-    "setup_envrc",
     "submodule_update",
+    "symlink_envrc_if_needed",
     "user_email_in_this_working_copy",
 )
