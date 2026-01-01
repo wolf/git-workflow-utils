@@ -1,13 +1,16 @@
 [project]
 name = "git-workflow-utils"
-version = "1.1.0"
+version = "1.2.0"
 description = "Shared utilities for git workflow automation scripts"
 readme = "README.md"
 authors = [
     { name = "Wolf", email = "Wolf@zv.cx" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "pathspec",
+    "typing_extensions",
+]
 
 [dependency-groups]
 dev = [

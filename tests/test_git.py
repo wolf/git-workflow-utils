@@ -8,6 +8,7 @@ import pytest
 from git_workflow_utils.git import (
     current_branch,
     fetch_all,
+    filter_repos_by_ignore_file,
     find_branches,
     find_git_repos,
     get_commits,
@@ -299,3 +300,125 @@ class TestGetCommits:
     def test_works_without_filters(self, git_repo):
         commits = list(get_commits(repo=git_repo))
         assert len(commits) >= 1
+
+class TestFindGitReposWorktrees:
+    """Tests for find_git_repos worktree filtering."""
+
+    def test_exclude_worktrees(self, tmp_path):
+        """Test that include_worktrees=False excludes worktrees."""
+        # Create main repo
+        main_repo = tmp_path / "main"
+        main_repo.mkdir()
+        run_git("init", repo=main_repo)
+        (main_repo / "file.txt").write_text("content")
+        run_git("add", "file.txt", repo=main_repo)
+        run_git("commit", "-m", "Initial commit", repo=main_repo)
+
+        # Create worktree (has .git file, not directory)
+        worktree = tmp_path / "worktree"
+        run_git("worktree", "add", str(worktree), "HEAD", repo=main_repo)
+
+        # With include_worktrees=True (default), should find both
+        all_repos = list(find_git_repos(tmp_path, include_worktrees=True))
+        assert len(all_repos) == 2
+        assert main_repo in all_repos
+        assert worktree in all_repos
+
+        # With include_worktrees=False, should only find main repo
+        main_only = list(find_git_repos(tmp_path, include_worktrees=False))
+        assert len(main_only) == 1
+        assert main_repo in main_only
+        assert worktree not in main_only
+
+
+class TestFilterReposByIgnoreFile:
+    """Tests for filter_repos_by_ignore_file function."""
+
+    def test_simple_pattern(self, tmp_path):
+        """Test basic ignore file with simple repo name."""
+        # Create repos
+        repo1 = tmp_path / "active-repo"
+        repo2 = tmp_path / "archived-repo"
+        repo1.mkdir()
+        repo2.mkdir()
+        run_git("init", repo=repo1)
+        run_git("init", repo=repo2)
+
+        # Create ignore file
+        ignore_file = tmp_path / ".testignore"
+        ignore_file.write_text("archived-repo\n")
+
+        # Apply filtering
+        all_repos = list(find_git_repos(tmp_path))
+        filtered = list(filter_repos_by_ignore_file(all_repos, tmp_path, ".testignore"))
+
+        assert repo1 in filtered
+        assert repo2 not in filtered
+
+    def test_wildcard_pattern(self, tmp_path):
+        """Test ignore file with wildcard patterns."""
+        # Create repos
+        repos = [
+            tmp_path / "active-project",
+            tmp_path / "archived-old",
+            tmp_path / "archived-2023",
+        ]
+        for repo in repos:
+            repo.mkdir()
+            run_git("init", repo=repo)
+
+        # Create ignore file with wildcard
+        ignore_file = tmp_path / ".testignore"
+        ignore_file.write_text("archived-*\n")
+
+        # Apply filtering
+        all_repos = list(find_git_repos(tmp_path))
+        filtered = list(filter_repos_by_ignore_file(all_repos, tmp_path, ".testignore"))
+
+        assert repos[0] in filtered  # active-project
+        assert repos[1] not in filtered  # archived-old
+        assert repos[2] not in filtered  # archived-2023
+
+    def test_negation_pattern(self, tmp_path):
+        """Test ignore file with negation patterns."""
+        # Create repos in subdirectory
+        third_party = tmp_path / "third-party"
+        third_party.mkdir()
+
+        repos = [
+            third_party / "lib1",
+            third_party / "lib2",
+            third_party / "important",
+        ]
+        for repo in repos:
+            repo.mkdir()
+            run_git("init", repo=repo)
+
+        # Create ignore file: ignore third-party/* except important
+        ignore_file = tmp_path / ".testignore"
+        ignore_file.write_text("third-party/*\n!third-party/important\n")
+
+        # Apply filtering
+        all_repos = list(find_git_repos(tmp_path))
+        filtered = list(filter_repos_by_ignore_file(all_repos, tmp_path, ".testignore"))
+
+        assert repos[0] not in filtered  # lib1 ignored
+        assert repos[1] not in filtered  # lib2 ignored
+        assert repos[2] in filtered  # important un-ignored
+
+    def test_comments(self, tmp_path):
+        """Test that comments in ignore files are ignored."""
+        # Create repo
+        repo = tmp_path / "test-repo"
+        repo.mkdir()
+        run_git("init", repo=repo)
+
+        # Create ignore file with comments
+        ignore_file = tmp_path / ".testignore"
+        ignore_file.write_text("# This is a comment\n# test-repo should not be ignored\n")
+
+        # Apply filtering - repo should NOT be filtered
+        all_repos = list(find_git_repos(tmp_path))
+        filtered = list(filter_repos_by_ignore_file(all_repos, tmp_path, ".testignore"))
+
+        assert repo in filtered

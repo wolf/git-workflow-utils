@@ -1,7 +1,7 @@
 """Core git operations."""
 
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -229,7 +229,10 @@ def initialize_repo(repo: str | Path | None = None) -> None:
     setup_envrc(repo_path)
 
 
-def find_git_repos(root_dir: str | Path) -> Iterator[Path]:
+def find_git_repos(
+    root_dir: str | Path,
+    include_worktrees: bool = True,
+) -> Iterator[Path]:
     """
     Find all git repositories under root_dir.
 
@@ -238,16 +241,100 @@ def find_git_repos(root_dir: str | Path) -> Iterator[Path]:
 
     Args:
         root_dir: Root directory to search for git repositories
+        include_worktrees: If False, exclude git worktrees (where .git is a file).
+                          Default True for backward compatibility.
 
     Yields:
         Repository paths
 
     Example:
-        for repo in sorted(find_git_repos(Path.home() / "develop")):
+        # Find all repos including worktrees
+        for repo in find_git_repos(Path.home() / "develop"):
+            print(repo.name)
+
+        # Find only main repos (exclude worktrees)
+        for repo in find_git_repos(Path.home() / "develop", include_worktrees=False):
             print(repo.name)
     """
     for git_marker in Path(root_dir).rglob(".git"):
-        yield git_marker.parent
+        # Yield directories (main repos) or files if worktrees requested
+        # Skip exotic filesystem objects (devices, pipes, etc.)
+        if git_marker.is_dir() or (include_worktrees and git_marker.is_file()):
+            yield git_marker.parent
+
+
+def filter_repos_by_ignore_file(
+    repos: Iterable[Path],
+    root_dir: str | Path,
+    ignore_filename: str,
+) -> Iterator[Path]:
+    """
+    Filter repositories based on gitignore-style ignore files.
+
+    Reads ignore files hierarchically (like .gitignore) and filters
+    the repository list using gitignore-style patterns. Supports:
+    - Simple patterns: repo-name
+    - Wildcards: archived-*, */node_modules
+    - Path patterns: third-party/*, wolf/*/old
+    - Negation: !important-repo
+    - Comments: # lines starting with hash
+
+    Ignore files are checked hierarchically from root_dir upward,
+    with patterns in deeper directories taking precedence.
+
+    Args:
+        repos: Iterator or list of repository paths to filter
+        root_dir: Root directory that was searched (used to find ignore files)
+        ignore_filename: Name of ignore file to look for (e.g., ".journalignore", ".deployignore")
+
+    Yields:
+        Repository paths that are not ignored
+
+    Example:
+        # Filter for daily work summary
+        repos = find_git_repos(Path.home() / "develop", include_worktrees=False)
+        active_repos = filter_repos_by_ignore_file(repos, Path.home() / "develop", ".journalignore")
+        for repo in active_repos:
+            print(f"Active repo: {repo.name}")
+    """
+    import pathspec
+
+    root_dir = Path(root_dir).resolve()
+
+    # Walk up from root_dir to find all ignore files
+    # (We'll read them in order from root down for proper precedence)
+    ignore_files = []
+    for parent in [root_dir] + list(root_dir.parents):
+        ignore_file = parent / ignore_filename
+        if ignore_file.exists():
+            ignore_files.append(ignore_file)
+
+    # Read in reverse order (root first) so deeper files override
+    ignore_files.reverse()
+
+    # Build combined pathspec from all ignore files
+    patterns = []
+    for ignore_file in ignore_files:
+        with open(ignore_file) as f:
+            patterns.extend(f.read().splitlines())
+
+    # Create pathspec matcher (handles gitignore syntax)
+    spec = pathspec.PathSpec.from_lines('gitwildmatch', patterns)
+
+    # Filter repos
+    for repo in repos:
+        # Get path relative to root_dir for matching
+        try:
+            rel_path = repo.relative_to(root_dir)
+        except ValueError:
+            # Repo is outside root_dir, don't filter it
+            yield repo
+            continue
+
+        # Check if this repo path matches any ignore pattern
+        # pathspec returns True if path matches (should be ignored)
+        if not spec.match_file(str(rel_path)):
+            yield repo
 
 
 def user_email_in_this_working_copy(repo: str | Path | None = None) -> str | None:

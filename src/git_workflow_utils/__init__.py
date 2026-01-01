@@ -13,6 +13,7 @@ from .direnv import (
 from .git import (
     current_branch,
     fetch_all,
+    filter_repos_by_ignore_file,
     find_branches,
     find_git_repos,
     get_commits,
@@ -33,6 +34,7 @@ __all__ = (
     "current_branch",
     "direnv_allow",
     "fetch_all",
+    "filter_repos_by_ignore_file",
     "find_branches",
     "find_git_repos",
     "get_commits",
