@@ -395,6 +395,77 @@ def filter_repos_by_ignore_file(
             yield repo
 
 
+def get_branch_description(branch: str, repo: Path | None = None) -> str | None:
+    """
+    Get the description for a branch.
+
+    Args:
+        branch: Name of the branch.
+        repo: Optional repository path. If None, uses current directory.
+
+    Returns:
+        Branch description if set, otherwise None.
+
+    Example:
+        desc = get_branch_description("feature-branch")
+        if desc:
+            print(f"Branch description: {desc}")
+
+    """
+    result = run_git(
+        "config", f"branch.{branch}.description",
+        repo=repo,
+        capture=True,
+        check=False,
+    )
+    if result.returncode == 0 and (desc := result.stdout.strip()):
+        return desc
+    return None
+
+
+def get_branch_upstream(branch: str, repo: Path | None = None) -> str | None:
+    """
+    Get the upstream tracking branch for a local branch.
+
+    Args:
+        branch: Name of the local branch.
+        repo: Optional repository path. If None, uses current directory.
+
+    Returns:
+        Upstream branch in "remote/branch" format (e.g., "origin/main"),
+        or None if no upstream is configured.
+
+    Example:
+        upstream = get_branch_upstream("feature")
+        if upstream:
+            print(f"Tracking: {upstream}")
+
+    """
+    # Get the remote name
+    remote_result = run_git(
+        "config", f"branch.{branch}.remote",
+        repo=repo,
+        capture=True,
+        check=False,
+    )
+    if remote_result.returncode != 0 or not (remote := remote_result.stdout.strip()):
+        return None
+
+    # Get the merge ref
+    merge_result = run_git(
+        "config", f"branch.{branch}.merge",
+        repo=repo,
+        capture=True,
+        check=False,
+    )
+    if merge_result.returncode != 0 or not (merge_ref := merge_result.stdout.strip()):
+        return None
+
+    # Convert refs/heads/branch to just branch
+    branch_name = merge_ref.removeprefix("refs/heads/")
+    return f"{remote}/{branch_name}"
+
+
 def user_email_in_this_working_copy(repo: str | Path | None = None) -> str | None:
     """
     Get the configured user email for this working copy.

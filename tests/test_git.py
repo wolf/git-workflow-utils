@@ -11,6 +11,8 @@ from git_workflow_utils.git import (
     filter_repos_by_ignore_file,
     find_branches,
     find_git_repos,
+    get_branch_description,
+    get_branch_upstream,
     get_commits,
     has_uncommitted_changes,
     initialize_repo,
@@ -422,3 +424,88 @@ class TestFilterReposByIgnoreFile:
         filtered = list(filter_repos_by_ignore_file(all_repos, tmp_path, ".testignore"))
 
         assert repo in filtered
+
+
+class TestGetBranchDescription:
+    """Tests for get_branch_description function."""
+
+    def test_returns_none_when_no_description(self, git_repo):
+        desc = get_branch_description("main", git_repo)
+        assert desc is None
+
+    def test_returns_description_when_set(self, git_repo):
+        subprocess.run(
+            ["git", "config", "branch.main.description", "This is the main branch"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        desc = get_branch_description("main", git_repo)
+        assert desc == "This is the main branch"
+
+    def test_returns_multiline_description(self, git_repo):
+        subprocess.run(
+            ["git", "config", "branch.main.description", "Line 1\nLine 2\nLine 3"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        desc = get_branch_description("main", git_repo)
+        assert "Line 1" in desc
+        assert "Line 2" in desc
+
+    def test_works_with_current_directory(self, git_repo, monkeypatch):
+        subprocess.run(
+            ["git", "config", "branch.main.description", "Test description"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        monkeypatch.chdir(git_repo)
+        desc = get_branch_description("main")
+        assert desc == "Test description"
+
+    def test_returns_none_for_nonexistent_branch(self, git_repo):
+        desc = get_branch_description("nonexistent", git_repo)
+        assert desc is None
+
+
+class TestGetBranchUpstream:
+    """Tests for get_branch_upstream function."""
+
+    def test_returns_none_when_no_upstream(self, git_repo):
+        upstream = get_branch_upstream("main", git_repo)
+        assert upstream is None
+
+    def test_returns_upstream_when_set(self, git_repo_with_remote):
+        git_repo, _ = git_repo_with_remote
+        upstream = get_branch_upstream("main", git_repo)
+        assert upstream == "origin/main"
+
+    def test_works_with_current_directory(self, git_repo_with_remote, monkeypatch):
+        git_repo, _ = git_repo_with_remote
+        monkeypatch.chdir(git_repo)
+        upstream = get_branch_upstream("main")
+        assert upstream == "origin/main"
+
+    def test_returns_none_for_nonexistent_branch(self, git_repo):
+        upstream = get_branch_upstream("nonexistent", git_repo)
+        assert upstream is None
+
+    def test_returns_upstream_for_feature_branch(self, git_repo_with_remote):
+        git_repo, remote = git_repo_with_remote
+        # Create and push a feature branch
+        subprocess.run(
+            ["git", "checkout", "-b", "feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        upstream = get_branch_upstream("feature", git_repo)
+        assert upstream == "origin/feature"
