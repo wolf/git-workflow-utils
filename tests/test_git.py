@@ -13,7 +13,9 @@ from git_workflow_utils.git import (
     find_git_repos,
     get_branch_description,
     get_branch_upstream,
+    get_branches_with_descriptions,
     get_commits,
+    get_git_common_dir,
     has_uncommitted_changes,
     initialize_repo,
     run_git,
@@ -509,3 +511,144 @@ class TestGetBranchUpstream:
         )
         upstream = get_branch_upstream("feature", git_repo)
         assert upstream == "origin/feature"
+
+
+class TestGetGitCommonDir:
+    """Tests for get_git_common_dir function."""
+
+    def test_returns_git_dir_for_regular_repo(self, git_repo):
+        git_dir = get_git_common_dir(git_repo)
+        assert git_dir == (git_repo / ".git").resolve()
+
+    def test_returns_main_git_dir_for_worktree(self, git_repo, tmp_path):
+        # Create a worktree
+        worktree_path = tmp_path / "worktree"
+        subprocess.run(
+            ["git", "worktree", "add", str(worktree_path), "-b", "feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # The common dir for the worktree should be the main repo's .git
+        common_dir = get_git_common_dir(worktree_path)
+        assert common_dir == (git_repo / ".git").resolve()
+
+    def test_returns_absolute_path(self, git_repo):
+        git_dir = get_git_common_dir(git_repo)
+        assert git_dir.is_absolute()
+
+    def test_works_with_current_directory(self, git_repo, monkeypatch):
+        monkeypatch.chdir(git_repo)
+        git_dir = get_git_common_dir()
+        assert git_dir == (git_repo / ".git").resolve()
+
+
+class TestGetBranchesWithDescriptions:
+    """Tests for get_branches_with_descriptions function."""
+
+    def test_returns_empty_set_when_no_descriptions(self, git_repo):
+        branches = get_branches_with_descriptions(git_repo)
+        assert branches == set()
+
+    def test_returns_branch_with_description(self, git_repo):
+        subprocess.run(
+            ["git", "config", "branch.main.description", "Main branch"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        branches = get_branches_with_descriptions(git_repo)
+        assert branches == {"main"}
+
+    def test_returns_multiple_branches_with_descriptions(self, git_repo):
+        # Create feature branch
+        subprocess.run(
+            ["git", "checkout", "-b", "feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Set descriptions on both branches
+        subprocess.run(
+            ["git", "config", "branch.main.description", "Main branch"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "branch.feature.description", "Feature branch"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        branches = get_branches_with_descriptions(git_repo)
+        assert branches == {"main", "feature"}
+
+    def test_excludes_branches_without_descriptions(self, git_repo):
+        # Create branches
+        subprocess.run(
+            ["git", "checkout", "-b", "with-desc"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "-b", "without-desc"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Only set description on one
+        subprocess.run(
+            ["git", "config", "branch.with-desc.description", "Has description"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        branches = get_branches_with_descriptions(git_repo)
+        assert "with-desc" in branches
+        assert "without-desc" not in branches
+
+    def test_works_with_current_directory(self, git_repo, monkeypatch):
+        subprocess.run(
+            ["git", "config", "branch.main.description", "Main branch"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        monkeypatch.chdir(git_repo)
+        branches = get_branches_with_descriptions()
+        assert "main" in branches
+
+    def test_works_in_worktree(self, git_repo, tmp_path):
+        # Set description on main branch
+        subprocess.run(
+            ["git", "config", "branch.main.description", "Main branch"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Create a worktree
+        worktree_path = tmp_path / "worktree"
+        subprocess.run(
+            ["git", "worktree", "add", str(worktree_path), "-b", "feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Should still find main's description from the worktree
+        branches = get_branches_with_descriptions(worktree_path)
+        assert "main" in branches
