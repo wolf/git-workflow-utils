@@ -7,6 +7,7 @@ import pytest
 
 from git_workflow_utils.git import (
     current_branch,
+    enable_worktree_config,
     fetch_all,
     filter_repos_by_ignore_file,
     find_branches,
@@ -48,6 +49,59 @@ class TestRunGit:
     def test_capture_returns_output(self, git_repo):
         result = run_git("branch", "--show-current", repo=git_repo, capture=True)
         assert result.stdout == "main\n"
+
+
+class TestEnableWorktreeConfig:
+    """Tests for enable_worktree_config function."""
+
+    def test_enables_extension(self, git_repo):
+        enable_worktree_config(git_repo)
+        result = run_git("config", "extensions.worktreeConfig", repo=git_repo, capture=True)
+        assert result.stdout.strip() == "true"
+
+    def test_idempotent(self, git_repo):
+        enable_worktree_config(git_repo)
+        enable_worktree_config(git_repo)  # Should not raise
+        result = run_git("config", "extensions.worktreeConfig", repo=git_repo, capture=True)
+        assert result.stdout.strip() == "true"
+
+    def test_allows_worktree_config_in_worktree(self, git_repo, tmp_path):
+        enable_worktree_config(git_repo)
+
+        # Create a worktree
+        worktree_path = tmp_path / "worktree"
+        run_git("worktree", "add", str(worktree_path), "-b", "feature", repo=git_repo)
+
+        # Should be able to set worktree-specific config without error
+        run_git("config", "--worktree", "test.key", "test-value", repo=worktree_path)
+        result = run_git("config", "--worktree", "test.key", repo=worktree_path, capture=True)
+        assert result.stdout.strip() == "test-value"
+
+    def test_worktree_config_isolated(self, git_repo, tmp_path):
+        enable_worktree_config(git_repo)
+
+        # Create two worktrees
+        wt1 = tmp_path / "worktree1"
+        wt2 = tmp_path / "worktree2"
+        run_git("worktree", "add", str(wt1), "-b", "feature1", repo=git_repo)
+        run_git("worktree", "add", str(wt2), "-b", "feature2", repo=git_repo)
+
+        # Set config in worktree1 only
+        run_git("config", "--worktree", "test.key", "wt1-value", repo=wt1)
+
+        # Worktree1 should have it
+        result1 = run_git("config", "--worktree", "test.key", repo=wt1, capture=True, check=False)
+        assert result1.stdout.strip() == "wt1-value"
+
+        # Worktree2 should not have it
+        result2 = run_git("config", "--worktree", "test.key", repo=wt2, capture=True, check=False)
+        assert result2.returncode != 0  # Config not found
+
+    def test_works_with_current_directory(self, git_repo, monkeypatch):
+        monkeypatch.chdir(git_repo)
+        enable_worktree_config()
+        result = run_git("config", "extensions.worktreeConfig", capture=True)
+        assert result.stdout.strip() == "true"
 
 
 class TestCurrentBranch:

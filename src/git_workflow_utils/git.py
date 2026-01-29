@@ -257,11 +257,30 @@ def submodule_update(repo: str | Path | None = None) -> None:
     )
 
 
+def enable_worktree_config(repo: Path | None = None) -> None:
+    """
+    Enable worktree-specific configuration for the repository.
+
+    Sets `extensions.worktreeConfig = true`, which allows each worktree to have
+    its own `config.worktree` file for worktree-specific settings (like include
+    paths that point to files in the worktree's working directory).
+
+    This is a repo-wide setting stored in the shared config. Safe to call
+    multiple times - setting it when already true is a no-op.
+
+    Args:
+        repo: Optional repository path. If None, uses current directory.
+
+    """
+    run_git("config", "extensions.worktreeConfig", "true", repo=repo, check=False)
+
+
 def initialize_repo(repo: str | Path | None = None) -> None:
     """
     Initialize a working copy (worktree or fresh clone) with standard setup.
 
     This performs common post-clone/worktree setup tasks:
+    - Enable worktree-specific config (extensions.worktreeConfig)
     - Initialize and update submodules recursively
     - Set up .envrc from .envrc.sample (if present)
     - Allow direnv if .envrc exists (if direnv available)
@@ -278,6 +297,7 @@ def initialize_repo(repo: str | Path | None = None) -> None:
     """
     repo_path = resolve_repo(repo)
 
+    enable_worktree_config(repo_path)
     submodule_update(repo_path)
 
     envrc = symlink_envrc_if_needed(repo_path)

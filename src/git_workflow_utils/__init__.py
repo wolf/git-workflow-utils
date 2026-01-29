@@ -11,6 +11,7 @@ from .direnv import (
 )
 from .git import (
     current_branch,
+    enable_worktree_config,
     fetch_all,
     filter_repos_by_ignore_file,
     find_branches,
@@ -53,6 +54,7 @@ __all__ = (
     "apply_user_template",
     "current_branch",
     "direnv_allow",
+    "enable_worktree_config",
     "expand_format",
     "extract_ticket_from_branch",
     "fetch_all",
