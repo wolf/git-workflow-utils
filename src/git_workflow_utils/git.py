@@ -395,6 +395,66 @@ def filter_repos_by_ignore_file(
             yield repo
 
 
+def get_git_common_dir(repo: Path | None = None) -> Path:
+    """
+    Get the common .git directory for the current repository.
+
+    For worktrees, this returns the main repo's .git directory where shared
+    data (branch configurations, refs, hooks) is stored. For regular repos,
+    returns the .git directory.
+
+    Args:
+        repo: Optional repository path. If None, uses current directory.
+
+    Returns:
+        Path to the common .git directory (always absolute).
+
+    """
+    result = run_git("rev-parse", "--git-common-dir", repo=repo, capture=True)
+    git_dir = Path(result.stdout.strip())
+
+    # The output may be relative to the repo, not cwd
+    if not git_dir.is_absolute():
+        git_dir = resolve_repo(repo) / git_dir
+
+    return git_dir.resolve()
+
+
+def get_branches_with_descriptions(repo: Path | None = None) -> set[str]:
+    """
+    Find branches that have descriptions set.
+
+    Uses `git config --get-regexp` to find all branch descriptions.
+
+    Args:
+        repo: Optional repository path. If None, uses current directory.
+
+    Returns:
+        Set of branch names (without refs/heads/ prefix) that have descriptions.
+
+    """
+    import re
+
+    result = run_git(
+        "config", "--get-regexp", r"^branch\..*\.description$",
+        repo=repo,
+        capture=True,
+        check=False,
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return set()
+
+    # Output format: "branch.NAME.description VALUE"
+    # Extract NAME from each line
+    pattern = re.compile(r"^branch\.(.+)\.description\s")
+    return {
+        match.group(1)
+        for line in result.stdout.splitlines()
+        if (match := pattern.match(line))
+    }
+
+
 def get_branch_description(branch: str, repo: Path | None = None) -> str | None:
     """
     Get the description for a branch.
