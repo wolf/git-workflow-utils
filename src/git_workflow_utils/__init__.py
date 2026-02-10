@@ -21,6 +21,8 @@ from .git import (
     get_branches_with_descriptions,
     get_commits,
     get_git_common_dir,
+    get_local_branches,
+    get_remote_branches,
     git_config,
     git_config_list,
     has_uncommitted_changes,
@@ -40,18 +42,23 @@ from .templates import (
     symlink_envrc_if_needed,
 )
 from .ticket import (
+    branch_matches_ticket,
     extract_ticket_from_branch,
+    find_matching_branches,
+    get_branch_commit_message,
     get_ticket_url,
     normalize_ticket,
 )
 from .workflow import (
     expand_format,
+    get_owner,
     get_project_name,
     get_workflow_config,
 )
 
 __all__ = (
     "apply_user_template",
+    "branch_matches_ticket",
     "current_branch",
     "direnv_allow",
     "enable_worktree_config",
@@ -60,13 +67,18 @@ __all__ = (
     "fetch_all",
     "filter_repos_by_ignore_file",
     "find_branches",
+    "find_matching_branches",
     "find_git_repos",
+    "get_branch_commit_message",
     "get_branch_description",
     "get_branch_upstream",
     "get_branches_with_descriptions",
     "get_commits",
     "get_git_common_dir",
+    "get_local_branches",
+    "get_owner",
     "get_project_name",
+    "get_remote_branches",
     "get_ticket_url",
     "get_workflow_config",
     "git_config",

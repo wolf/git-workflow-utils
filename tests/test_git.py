@@ -17,6 +17,8 @@ from git_workflow_utils.git import (
     get_branches_with_descriptions,
     get_commits,
     get_git_common_dir,
+    get_local_branches,
+    get_remote_branches,
     has_uncommitted_changes,
     initialize_repo,
     run_git,
@@ -706,3 +708,59 @@ class TestGetBranchesWithDescriptions:
         # Should still find main's description from the worktree
         branches = get_branches_with_descriptions(worktree_path)
         assert "main" in branches
+
+
+class TestGetLocalBranches:
+    """Tests for get_local_branches function."""
+
+    def test_returns_main_branch(self, git_repo):
+        branches = get_local_branches(git_repo)
+        assert "main" in branches
+
+    def test_includes_created_branches(self, git_repo):
+        subprocess.run(
+            ["git", "checkout", "-b", "feature-1"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "-b", "feature-2"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        branches = get_local_branches(git_repo)
+        assert "main" in branches
+        assert "feature-1" in branches
+        assert "feature-2" in branches
+
+    def test_does_not_include_remote_branches(self, git_repo_with_remote):
+        git_repo, _ = git_repo_with_remote
+        branches = get_local_branches(git_repo)
+        assert not any("origin/" in b for b in branches)
+
+    def test_works_with_current_directory(self, git_repo, monkeypatch):
+        monkeypatch.chdir(git_repo)
+        branches = get_local_branches()
+        assert "main" in branches
+
+
+class TestGetRemoteBranches:
+    """Tests for get_remote_branches function."""
+
+    def test_returns_empty_when_no_remote(self, git_repo):
+        branches = get_remote_branches(git_repo)
+        assert branches == []
+
+    def test_returns_remote_branches(self, git_repo_with_remote):
+        git_repo, _ = git_repo_with_remote
+        branches = get_remote_branches(git_repo)
+        assert any("origin/main" in b for b in branches)
+
+    def test_does_not_include_local_branches(self, git_repo_with_remote):
+        git_repo, _ = git_repo_with_remote
+        branches = get_remote_branches(git_repo)
+        # All remote branches should have a remote prefix
+        for b in branches:
+            assert "/" in b

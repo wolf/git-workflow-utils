@@ -4,7 +4,7 @@ import re
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-from .git import git_config, run_git
+from .git import git_config, run_git, user_email_in_this_working_copy
 from .paths import resolve_repo
 
 
@@ -58,6 +58,25 @@ def expand_format(format_string: str, **placeholders: str) -> str:
         return placeholders.get(name, match.group(0))
 
     return re.sub(r"%\((\w+)\)", replace, format_string)
+
+
+def get_owner(repo: Path | None = None) -> str:
+    """
+    Get the owner name for workflow format placeholders.
+
+    Extracts the local part of the configured `user.email` (before the `@`).
+    Returns `"unknown"` if no email is configured.
+
+    Args:
+        repo: Optional repository path. If None, uses current directory.
+
+    Returns:
+        Owner name derived from git user.email.
+
+    """
+    if email := user_email_in_this_working_copy(repo=repo):
+        return email.split("@")[0]
+    return "unknown"
 
 
 def _extract_repo_name_from_url(url: str) -> str | None:

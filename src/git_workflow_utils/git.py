@@ -169,6 +169,36 @@ def fetch_all(repo: Path | None = None, *, quiet: bool = False) -> None:
     )
 
 
+def get_local_branches(repo: Path | None = None) -> list[str]:
+    """
+    Get all local branch names.
+
+    Args:
+        repo: Optional repository path. If None, uses current directory.
+
+    Returns:
+        List of local branch names.
+
+    """
+    result = run_git("branch", "--format=%(refname:short)", repo=repo, capture=True)
+    return output.splitlines() if (output := result.stdout.strip()) else []
+
+
+def get_remote_branches(repo: Path | None = None) -> list[str]:
+    """
+    Get all remote branch names.
+
+    Args:
+        repo: Optional repository path. If None, uses current directory.
+
+    Returns:
+        List of remote branch names (e.g., "origin/main").
+
+    """
+    result = run_git("branch", "-r", "--format=%(refname:short)", repo=repo, capture=True)
+    return output.splitlines() if (output := result.stdout.strip()) else []
+
+
 def find_branches(
     pattern: str,
     repo: str | Path | None = None,

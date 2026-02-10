@@ -5,7 +5,10 @@ import subprocess
 import pytest
 
 from git_workflow_utils.ticket import (
+    branch_matches_ticket,
     extract_ticket_from_branch,
+    find_matching_branches,
+    get_branch_commit_message,
     get_ticket_url,
     normalize_ticket,
 )
@@ -229,3 +232,213 @@ class TestExtractTicketFromBranch:
         )
         ticket = extract_ticket_from_branch("feature/SE-111-in-name", git_repo)
         assert ticket == "SE-111"
+
+
+class TestGetBranchCommitMessage:
+    """Tests for get_branch_commit_message function."""
+
+    def test_returns_commit_message(self, git_repo):
+        msg = get_branch_commit_message("main", git_repo)
+        assert msg == "Initial commit"
+
+    def test_returns_full_message_with_body(self, git_repo):
+        (git_repo / "file.txt").write_text("content")
+        subprocess.run(["git", "add", "file.txt"], cwd=git_repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Subject line\n\nBody paragraph here."],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        msg = get_branch_commit_message("main", git_repo)
+        assert "Subject line" in msg
+        assert "Body paragraph here." in msg
+
+    def test_returns_none_for_nonexistent_branch(self, git_repo):
+        msg = get_branch_commit_message("nonexistent", git_repo)
+        assert msg is None
+
+
+class TestBranchMatchesTicket:
+    """Tests for branch_matches_ticket function."""
+
+    def test_matches_ticket_in_branch_name(self, git_repo):
+        subprocess.run(
+            ["git", "checkout", "-b", "feature/SE-123-add-stuff"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert branch_matches_ticket("feature/SE-123-add-stuff", "SE-123", repo=git_repo)
+
+    def test_case_insensitive(self, git_repo):
+        subprocess.run(
+            ["git", "checkout", "-b", "feature/se-123-add-stuff"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert branch_matches_ticket("feature/se-123-add-stuff", "SE-123", repo=git_repo)
+
+    def test_no_match_returns_false(self, git_repo):
+        assert not branch_matches_ticket("main", "SE-999", repo=git_repo)
+
+    def test_matches_ticket_in_description(self, git_repo):
+        subprocess.run(
+            ["git", "checkout", "-b", "my-feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "branch.my-feature.description", "Working on SE-456"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert branch_matches_ticket("my-feature", "SE-456", repo=git_repo)
+
+    def test_matches_ticket_in_upstream(self, git_repo_with_remote):
+        git_repo, _ = git_repo_with_remote
+        subprocess.run(
+            ["git", "checkout", "-b", "local-name"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "local-name:feature/SE-789-remote"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert branch_matches_ticket("local-name", "SE-789", repo=git_repo)
+
+    def test_matches_ticket_in_commit_message(self, git_repo):
+        subprocess.run(
+            ["git", "checkout", "-b", "plain-branch"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        (git_repo / "feature.txt").write_text("new feature")
+        subprocess.run(["git", "add", "feature.txt"], cwd=git_repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "SE-999: Add new feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert branch_matches_ticket("plain-branch", "SE-999", repo=git_repo)
+
+    def test_check_details_false_skips_description(self, git_repo):
+        """With check_details=False, only branch name is checked."""
+        subprocess.run(
+            ["git", "checkout", "-b", "my-feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "branch.my-feature.description", "Working on SE-456"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert not branch_matches_ticket("my-feature", "SE-456", check_details=False, repo=git_repo)
+
+
+class TestFindMatchingBranches:
+    """Tests for find_matching_branches function."""
+
+    def test_finds_local_branch_by_name(self, git_repo):
+        subprocess.run(
+            ["git", "checkout", "-b", "feature/SE-123-stuff"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        matches = find_matching_branches("SE-123", repo=git_repo)
+        assert "feature/SE-123-stuff" in matches
+
+    def test_returns_empty_when_no_match(self, git_repo):
+        matches = find_matching_branches("SE-999", repo=git_repo)
+        assert matches == []
+
+    def test_finds_remote_branches(self, git_repo_with_remote):
+        git_repo, _ = git_repo_with_remote
+        subprocess.run(
+            ["git", "checkout", "-b", "feature/SE-100-remote"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "origin", "feature/SE-100-remote"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        matches = find_matching_branches(
+            "SE-100", include_remote=True, repo=git_repo,
+        )
+        assert "feature/SE-100-remote" in matches
+        assert any("origin/" in m for m in matches)
+
+    def test_deduplicates_remotes(self, git_repo_with_remote):
+        git_repo, _ = git_repo_with_remote
+        subprocess.run(
+            ["git", "checkout", "-b", "feature/SE-200-dedup"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "feature/SE-200-dedup"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        matches = find_matching_branches(
+            "SE-200", include_remote=True, deduplicate=True, repo=git_repo,
+        )
+        # Local branch should be present
+        assert "feature/SE-200-dedup" in matches
+        # Remote that is upstream of local should be removed
+        assert "origin/feature/SE-200-dedup" not in matches
+
+    def test_include_local_false(self, git_repo_with_remote):
+        git_repo, _ = git_repo_with_remote
+        subprocess.run(
+            ["git", "checkout", "-b", "feature/SE-300-local"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "origin", "feature/SE-300-local"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        matches = find_matching_branches(
+            "SE-300", include_local=False, include_remote=True, repo=git_repo,
+        )
+        assert "feature/SE-300-local" not in matches
+        assert "origin/feature/SE-300-local" in matches
+
+    def test_finds_branch_by_description(self, git_repo):
+        subprocess.run(
+            ["git", "checkout", "-b", "my-feature"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "branch.my-feature.description", "Ticket: SE-400"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        matches = find_matching_branches("SE-400", repo=git_repo)
+        assert "my-feature" in matches

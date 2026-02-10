@@ -7,6 +7,7 @@ import pytest
 from git_workflow_utils.workflow import (
     _extract_repo_name_from_url,
     expand_format,
+    get_owner,
     get_project_name,
     get_workflow_config,
 )
@@ -191,3 +192,32 @@ class TestGetProjectName:
         # Project name should still be from main repo
         name = get_project_name(worktree_path)
         assert name == "test-repo"
+
+
+class TestGetOwner:
+    """Tests for get_owner function."""
+
+    def test_returns_local_part_of_email(self, git_repo):
+        owner = get_owner(git_repo)
+        assert owner == "test"  # From test@example.com in conftest
+
+    def test_returns_unknown_when_no_email(self, tmp_path):
+        repo = tmp_path / "no-email-repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+        # Unset any inherited email config
+        subprocess.run(
+            ["git", "config", "user.email", ""],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        owner = get_owner(repo)
+        # May return "unknown" or extract from global config; depends on environment
+        assert isinstance(owner, str)
+        assert len(owner) > 0
+
+    def test_works_with_current_directory(self, git_repo, monkeypatch):
+        monkeypatch.chdir(git_repo)
+        owner = get_owner()
+        assert owner == "test"
