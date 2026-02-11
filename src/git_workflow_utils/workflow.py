@@ -147,3 +147,64 @@ def get_project_name(repo: Path | None = None) -> str | None:
         return git_path.resolve().parent.name
 
     return None
+
+
+def _parse_csv_config(value: str) -> list[str]:
+    """
+    Parse a comma-separated config value into a list.
+
+    Splits on commas, strips whitespace, and filters out empty strings.
+
+    """
+    return [stripped for item in value.split(",") if (stripped := item.strip())]
+
+
+def get_local_branch_format(repo: Path | None = None) -> str:
+    """
+    Get the format string for local branch names.
+
+    Reads from `workflow.branch.localFormat`.
+    Default: `"%(desc)"`
+
+    """
+    return get_workflow_config("branch.localFormat", repo=repo) or "%(desc)"
+
+
+def get_remote_branch_format(repo: Path | None = None) -> str:
+    """
+    Get the format string for remote branch names.
+
+    Reads from `workflow.branch.remoteFormat`.
+    Default: `"%(type)/%(owner)/%(ticket)-%(desc)"`
+
+    """
+    return (
+        get_workflow_config("branch.remoteFormat", repo=repo)
+        or "%(type)/%(owner)/%(ticket)-%(desc)"
+    )
+
+
+def get_priority_branches(repo: Path | None = None) -> list[str]:
+    """
+    Get branch names to show first in listings.
+
+    Reads from `workflow.branches.priority` (comma-separated).
+    Default: `["prod", "develop"]`
+
+    """
+    if config := get_workflow_config("branches.priority", repo=repo):
+        return _parse_csv_config(config)
+    return ["prod", "develop"]
+
+
+def get_exclude_patterns(repo: Path | None = None) -> list[str]:
+    """
+    Get glob patterns to exclude from branch listings.
+
+    Reads from `workflow.branches.exclude` (comma-separated).
+    Default: `["*archive/*"]`
+
+    """
+    if config := get_workflow_config("branches.exclude", repo=repo):
+        return _parse_csv_config(config)
+    return ["*archive/*"]

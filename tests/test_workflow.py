@@ -6,9 +6,14 @@ import pytest
 
 from git_workflow_utils.workflow import (
     _extract_repo_name_from_url,
+    _parse_csv_config,
     expand_format,
+    get_exclude_patterns,
+    get_local_branch_format,
     get_owner,
+    get_priority_branches,
     get_project_name,
+    get_remote_branch_format,
     get_workflow_config,
 )
 
@@ -221,3 +226,86 @@ class TestGetOwner:
         monkeypatch.chdir(git_repo)
         owner = get_owner()
         assert owner == "test"
+
+
+class TestParseCSVConfig:
+    """Tests for _parse_csv_config helper."""
+
+    def test_single_value(self):
+        assert _parse_csv_config("prod") == ["prod"]
+
+    def test_multiple_values(self):
+        assert _parse_csv_config("prod,develop") == ["prod", "develop"]
+
+    def test_strips_whitespace(self):
+        assert _parse_csv_config(" prod , develop , main ") == ["prod", "develop", "main"]
+
+    def test_filters_empty_items(self):
+        assert _parse_csv_config("prod,,develop") == ["prod", "develop"]
+
+    def test_empty_string(self):
+        assert _parse_csv_config("") == []
+
+
+class TestGetLocalBranchFormat:
+    """Tests for get_local_branch_format function."""
+
+    def test_returns_default(self, git_repo):
+        assert get_local_branch_format(git_repo) == "%(desc)"
+
+    def test_returns_configured_value(self, git_repo):
+        subprocess.run(
+            ["git", "config", "workflow.branch.localFormat", "%(ticket)-%(desc)"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert get_local_branch_format(git_repo) == "%(ticket)-%(desc)"
+
+
+class TestGetRemoteBranchFormat:
+    """Tests for get_remote_branch_format function."""
+
+    def test_returns_default(self, git_repo):
+        assert get_remote_branch_format(git_repo) == "%(type)/%(owner)/%(ticket)-%(desc)"
+
+    def test_returns_configured_value(self, git_repo):
+        subprocess.run(
+            ["git", "config", "workflow.branch.remoteFormat", "%(owner)/%(ticket)"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert get_remote_branch_format(git_repo) == "%(owner)/%(ticket)"
+
+
+class TestGetPriorityBranches:
+    """Tests for get_priority_branches function."""
+
+    def test_returns_default(self, git_repo):
+        assert get_priority_branches(git_repo) == ["prod", "develop"]
+
+    def test_returns_configured_value(self, git_repo):
+        subprocess.run(
+            ["git", "config", "workflow.branches.priority", "main, develop, staging"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert get_priority_branches(git_repo) == ["main", "develop", "staging"]
+
+
+class TestGetExcludePatterns:
+    """Tests for get_exclude_patterns function."""
+
+    def test_returns_default(self, git_repo):
+        assert get_exclude_patterns(git_repo) == ["*archive/*"]
+
+    def test_returns_configured_value(self, git_repo):
+        subprocess.run(
+            ["git", "config", "workflow.branches.exclude", "*archive/*, wip/*"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert get_exclude_patterns(git_repo) == ["*archive/*", "wip/*"]

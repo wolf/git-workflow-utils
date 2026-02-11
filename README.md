@@ -216,7 +216,53 @@ git config --global worktree.userTemplate.mode link
 # 5. Now all new clones/worktrees will get these files automatically!
 ```
 
+## Configuration
+
+All workflow configuration uses git config under the `workflow.*` namespace.
+Set values with `git config` (local or global).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `workflow.ticket.prefix` | *(none)* | Prefix for bare ticket numbers (e.g., `SE`) |
+| `workflow.ticket.urlPattern` | *(none)* | URL template with `%(ticket)` placeholder |
+| `workflow.project.name` | *(computed)* | Project name override |
+| `workflow.branch.localFormat` | `%(desc)` | Format string for local branch names |
+| `workflow.branch.remoteFormat` | `%(type)/%(owner)/%(ticket)-%(desc)` | Format string for remote branch names |
+| `workflow.branches.priority` | `prod,develop` | Comma-separated priority branch names |
+| `workflow.branches.exclude` | `*archive/*` | Comma-separated glob patterns to exclude |
+
+### Format string placeholders
+
+Format strings use `%(name)` placeholders, expanded by `expand_format()`:
+
+| Placeholder | Source |
+|-------------|--------|
+| `%(ticket)` | Ticket identifier (e.g., `SE-123`) |
+| `%(desc)` | Branch description slug |
+| `%(type)` | Branch type (`feature`, `bugfix`, `hotfix`) |
+| `%(owner)` | Local part of `user.email` |
+
 ## API Reference
+
+### Workflow Module (`git_workflow_utils.workflow`)
+
+- **`get_workflow_config(key, repo=None, default=None)`** - Read a `workflow.*` git config value
+- **`expand_format(format_string, **placeholders)`** - Expand `%(name)` placeholders in a format string
+- **`get_owner(repo=None)`** - Get owner name from `user.email`
+- **`get_project_name(repo=None)`** - Get project name (config > remote URL > directory name)
+- **`get_local_branch_format(repo=None)`** - Get format string for local branch names
+- **`get_remote_branch_format(repo=None)`** - Get format string for remote branch names
+- **`get_priority_branches(repo=None)`** - Get branch names to show first in listings
+- **`get_exclude_patterns(repo=None)`** - Get glob patterns to exclude from branch listings
+
+### Ticket Module (`git_workflow_utils.ticket`)
+
+- **`normalize_ticket(ticket, repo=None)`** - Normalize a ticket identifier (expand bare numbers)
+- **`get_ticket_url(ticket, repo=None)`** - Get a browsable URL for a ticket
+- **`extract_ticket_from_branch(branch=None, repo=None, pattern=None)`** - Extract ticket from a branch name
+- **`branch_matches_ticket(branch, ticket, check_details=True, repo=None)`** - Check if a branch matches a ticket
+- **`find_matching_branches(ticket, ...)`** - Find branches associated with a ticket
+- **`get_branch_commit_message(branch, repo=None)`** - Get the first commit message unique to a branch
 
 ### Paths Module (`git_workflow_utils.paths`)
 
@@ -291,6 +337,8 @@ git-workflow-utils/
 │   ├── __init__.py       # Public API exports
 │   ├── paths.py          # Path and repository resolution
 │   ├── git.py            # Core git operations
+│   ├── workflow.py       # Workflow config and format strings
+│   ├── ticket.py         # Ticket extraction and matching
 │   ├── templates.py      # User template system
 │   ├── direnv.py         # Direnv integration
 │   └── py.typed          # Type hint marker
@@ -298,6 +346,8 @@ git-workflow-utils/
 │   ├── conftest.py       # Shared test fixtures
 │   ├── test_paths.py     # Path module tests
 │   ├── test_git.py       # Git module tests
+│   ├── test_workflow.py  # Workflow module tests
+│   ├── test_ticket.py    # Ticket module tests
 │   ├── test_templates.py # Template module tests
 │   └── test_direnv.py    # Direnv module tests
 ├── .ipython/             # Local IPython configuration
