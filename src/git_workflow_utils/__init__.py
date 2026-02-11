@@ -41,6 +41,12 @@ from .templates import (
     apply_user_template,
     symlink_envrc_if_needed,
 )
+from .description import (
+    BranchDescription,
+    build_branch_description,
+    format_branch_description,
+    parse_branch_description,
+)
 from .ticket import (
     branch_matches_ticket,
     extract_ticket_from_branch,
@@ -61,8 +67,10 @@ from .workflow import (
 )
 
 __all__ = (
+    "BranchDescription",
     "apply_user_template",
     "branch_matches_ticket",
+    "build_branch_description",
     "current_branch",
     "direnv_allow",
     "enable_worktree_config",
@@ -73,6 +81,7 @@ __all__ = (
     "find_branches",
     "find_git_repos",
     "find_matching_branches",
+    "format_branch_description",
     "get_branch_commit_message",
     "get_branch_description",
     "get_branch_upstream",
@@ -96,6 +105,7 @@ __all__ = (
     "is_absolute_repo_path",
     "is_direnv_available",
     "normalize_ticket",
+    "parse_branch_description",
     "resolve_path",
     "resolve_repo",
     "run_git",

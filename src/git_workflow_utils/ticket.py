@@ -14,6 +14,7 @@ Terminology:
 import re
 from pathlib import Path
 
+from .description import parse_branch_description
 from .git import (
     current_branch,
     get_branch_description,
@@ -138,9 +139,13 @@ def extract_ticket_from_branch(
     if match := ticket_re.search(branch):
         return match.group(1).upper()
 
-    # 2. Search branch description
-    if (desc := get_branch_description(branch, repo=repo)) and (match := ticket_re.search(desc)):
-        return match.group(1).upper()
+    # 2. Search branch description (prefer structured Ticket trailers)
+    if desc_str := get_branch_description(branch, repo=repo):
+        parsed = parse_branch_description(desc_str)
+        if parsed.tickets:
+            return parsed.tickets[0].upper()
+        if match := ticket_re.search(desc_str):
+            return match.group(1).upper()
 
     # 3. Search upstream branch name
     if (upstream := get_branch_upstream(branch, repo=repo)) and (match := ticket_re.search(upstream)):
@@ -190,8 +195,12 @@ def branch_matches_ticket(
     if not check_details:
         return False
 
-    if (desc := get_branch_description(branch, repo=repo)) and ticket_upper in desc.upper():
-        return True
+    if desc_str := get_branch_description(branch, repo=repo):
+        parsed = parse_branch_description(desc_str)
+        if any(ticket_upper == t.upper() for t in parsed.tickets):
+            return True
+        if ticket_upper in desc_str.upper():
+            return True
 
     if (upstream := get_branch_upstream(branch, repo=repo)) and ticket_upper in upstream.upper():
         return True

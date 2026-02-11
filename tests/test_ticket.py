@@ -216,6 +216,42 @@ class TestExtractTicketFromBranch:
         )
         assert ticket == "BUG123"
 
+    def test_extracts_ticket_from_trailer(self, git_repo):
+        """Structured Ticket trailer is found in description."""
+        subprocess.run(
+            ["git", "checkout", "-b", "my-work"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "branch.my-work.description", "Ticket: SE-777\nRemote: feature/wolf/SE-777-stuff"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        ticket = extract_ticket_from_branch("my-work", git_repo)
+        assert ticket == "SE-777"
+
+    def test_trailer_preferred_over_regex(self, git_repo):
+        """Structured Ticket trailer takes precedence over regex match in description."""
+        subprocess.run(
+            ["git", "checkout", "-b", "my-work"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        # Description has a Ticket trailer and also mentions another ticket in prose
+        subprocess.run(
+            ["git", "config", "branch.my-work.description",
+             "Fix for SE-999 regression\n\nTicket: SE-888"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        ticket = extract_ticket_from_branch("my-work", git_repo)
+        assert ticket == "SE-888"
+
     def test_branch_name_takes_precedence(self, git_repo):
         """When ticket is in multiple places, branch name wins."""
         subprocess.run(
@@ -330,6 +366,22 @@ class TestBranchMatchesTicket:
             capture_output=True,
         )
         assert branch_matches_ticket("plain-branch", "SE-999", repo=git_repo)
+
+    def test_matches_ticket_via_trailer(self, git_repo):
+        """Structured Ticket trailer is used for matching."""
+        subprocess.run(
+            ["git", "checkout", "-b", "my-work"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "branch.my-work.description", "Ticket: SE-456\nRemote: feature/wolf/SE-456-stuff"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+        assert branch_matches_ticket("my-work", "SE-456", repo=git_repo)
 
     def test_check_details_false_skips_description(self, git_repo):
         """With check_details=False, only branch name is checked."""

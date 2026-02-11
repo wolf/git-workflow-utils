@@ -255,6 +255,18 @@ Format strings use `%(name)` placeholders, expanded by `expand_format()`:
 - **`get_priority_branches(repo=None)`** - Get branch names to show first in listings
 - **`get_exclude_patterns(repo=None)`** - Get glob patterns to exclude from branch listings
 
+### Description Module (`git_workflow_utils.description`)
+
+- **`BranchDescription`** - Dataclass for structured branch descriptions (summary + trailers)
+  - `get(key)` - Get first value for a trailer key (case-insensitive)
+  - `get_all(key)` - Get all values for a trailer key
+  - `replace(key, value)` - Set a single value (replacing any existing)
+  - `add(key, value)` - Append a value (for multi-valued trailers like Ticket)
+  - `tickets` / `remote` / `pr` - Convenience properties
+- **`parse_branch_description(text)`** - Parse a description string into a `BranchDescription`
+- **`format_branch_description(desc)`** - Format a `BranchDescription` back to a string
+- **`build_branch_description(...)`** - Build a `BranchDescription` for a new branch
+
 ### Ticket Module (`git_workflow_utils.ticket`)
 
 - **`normalize_ticket(ticket, repo=None)`** - Normalize a ticket identifier (expand bare numbers)
@@ -338,6 +350,7 @@ git-workflow-utils/
 │   ├── paths.py          # Path and repository resolution
 │   ├── git.py            # Core git operations
 │   ├── workflow.py       # Workflow config and format strings
+│   ├── description.py    # Branch description parsing (git trailers)
 │   ├── ticket.py         # Ticket extraction and matching
 │   ├── templates.py      # User template system
 │   ├── direnv.py         # Direnv integration
@@ -347,6 +360,7 @@ git-workflow-utils/
 │   ├── test_paths.py     # Path module tests
 │   ├── test_git.py       # Git module tests
 │   ├── test_workflow.py  # Workflow module tests
+│   ├── test_description.py # Description module tests
 │   ├── test_ticket.py    # Ticket module tests
 │   ├── test_templates.py # Template module tests
 │   └── test_direnv.py    # Direnv module tests
